@@ -110,11 +110,21 @@ app.listen(PORT, () => {
 });
 
 // ================= AUTO PING =================
+// ================= AUTO PING =================
+const PING_URL =
+  process.env.RENDER_EXTERNAL_HOSTNAME
+    ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME}/health`
+    : `http://localhost:${PORT}/health`;
+
 setInterval(() => {
-    http.get(`http://${HOST}:${PORT}/health`, res => {
-        console.log(`[AUTOPING] ${res.statusCode}`);
-        res.resume();
-    }).on("error", err => {
-        console.error("[AUTOPING ERROR]", err.message);
+  const protocol = PING_URL.startsWith("https") ? https : http;
+
+  protocol
+    .get(PING_URL, (res) => {
+      console.log(`[AUTOPING] ${res.statusCode} - ${PING_URL}`);
+      res.resume();
+    })
+    .on("error", (err) => {
+      console.error("[AUTOPING ERROR]", err.message, PING_URL);
     });
-}, 5 * 60 * 1000);
+}, 1 * 60 * 1000); // 4 phút – tránh trùng giờ với cron của Render
