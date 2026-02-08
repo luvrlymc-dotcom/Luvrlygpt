@@ -1,13 +1,17 @@
-const express = require("express");
-const https = require("https");
-const http = require("http");
+import express from "express";
+import https from "https";
+import http from "http";
+import os from "os";
+import process from "process";
+
 
 const app = express();
 
-const PORT = 3000;
+// Render thường cấp PORT qua env
+const PORT = process.env.PORT || 3000;
 const HOST = "127.0.0.1";
 
-// 🔗 Gist RAW của bạn
+// 🔗 Gist RAW
 const GIST_RAW_URL =
   "https://gist.githubusercontent.com/luvrlymc-dotcom/61b9f419389dd72a0fe6a6bb6e5d0a2c/raw/b20666c7705cd014d17a839fe1a78c8001b17d6a/gistfile1.txt";
 
@@ -37,10 +41,10 @@ function fetchGist() {
     });
 }
 
-// Fetch ngay khi khởi động
+// Fetch ngay khi start
 fetchGist();
 
-// Auto check cập nhật mỗi 60s
+// Auto update mỗi 60s
 setInterval(fetchGist, 60 * 1000);
 
 // ================= ROUTES =================
@@ -52,14 +56,57 @@ app.get("/", (req, res) => {
     res.send(cachedHTML);
 });
 
-// Route ping nội bộ
 app.get("/health", (req, res) => {
-    res.send("OK");
+    const cpus = os.cpus();
+
+    const cpuUsage = cpus.map((cpu, i) => {
+        const total = Object.values(cpu.times).reduce((a, b) => a + b, 0);
+        return {
+            core: i,
+            model: cpu.model,
+            speedMHz: cpu.speed,
+            usagePercent: {
+                user: ((cpu.times.user / total) * 100).toFixed(2),
+                system: ((cpu.times.sys / total) * 100).toFixed(2),
+                idle: ((cpu.times.idle / total) * 100).toFixed(2)
+            }
+        };
+    });
+
+    res.json({
+        status: "ok",
+        timestamp: new Date().toISOString(),
+
+        system: {
+            platform: os.platform(),
+            arch: os.arch(),
+            uptimeSeconds: os.uptime(),
+            loadAverage: os.loadavg(), // 1m, 5m, 15m
+            totalMemoryMB: (os.totalmem() / 1024 / 1024).toFixed(2),
+            freeMemoryMB: (os.freemem() / 1024 / 1024).toFixed(2),
+            usedMemoryMB: ((os.totalmem() - os.freemem()) / 1024 / 1024).toFixed(2),
+            cpuCores: cpus.length
+        },
+
+        process: {
+            pid: process.pid,
+            nodeVersion: process.version,
+            memoryUsageMB: Object.fromEntries(
+                Object.entries(process.memoryUsage()).map(
+                    ([k, v]) => [k, (v / 1024 / 1024).toFixed(2)]
+                )
+            ),
+            uptimeSeconds: process.uptime()
+        },
+
+        cpu: cpuUsage
+    });
 });
+
 
 // ================= START SERVER =================
 app.listen(PORT, () => {
-    console.log(`🚀 Express running at http://${HOST}:${PORT}`);
+    console.log(`🚀 Express running on port ${PORT}`);
 });
 
 // ================= AUTO PING =================
