@@ -6,6 +6,7 @@ import process from "process";
 
 
 const app = express();
+app.use(express.static("."));
 
 // Render thường cấp PORT qua env
 const PORT = process.env.PORT || 3000;
