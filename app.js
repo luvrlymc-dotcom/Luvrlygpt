@@ -14,7 +14,7 @@ const HOST = "127.0.0.1";
 
 // 🔗 Gist RAW
 const GIST_RAW_URL =
-  "https://gist.githubusercontent.com/luvrlymc-dotcom/6e1411dd6056806ae7611319eee94de7/raw/7821d879a06070df72f3e8b5861c4c1a471588db/gistfile1.txt";
+  "https://gist.githubusercontent.com/luvrlymc-dotcom/6e1411dd6056806ae7611319eee94de7/raw/4b5b25148b72e748e8726089234a450b5c541d06/gistfile1.txt";
 
 // ================= CACHE =================
 let cachedHTML = "<h1>Loading...</h1>";
@@ -22,22 +22,41 @@ let lastHash = "";
 
 // ================= FETCH GIST =================
 function fetchGist() {
-    https.get(GIST_RAW_URL, res => {
+    const req = https.get(GIST_RAW_URL, (res) => {
+        if (res.statusCode !== 200) {
+            console.error("[GIST ERROR] Status:", res.statusCode);
+            res.resume();
+            return;
+        }
+
         let data = "";
 
         res.on("data", chunk => data += chunk);
+
         res.on("end", () => {
-            if (!data) return;
+            if (!data || data.length < 10) {
+                console.error("[GIST ERROR] Empty or invalid data");
+                return;
+            }
 
             const hash = Buffer.from(data).toString("base64");
 
             if (hash !== lastHash) {
                 cachedHTML = data;
                 lastHash = hash;
+
                 console.log(`[GIST] Updated @ ${new Date().toLocaleTimeString()}`);
             }
         });
-    }).on("error", err => {
+    });
+
+    // 🔥 timeout tránh treo
+    req.setTimeout(5000, () => {
+        console.error("[GIST ERROR] Timeout");
+        req.destroy();
+    });
+
+    req.on("error", (err) => {
         console.error("[GIST ERROR]", err.message);
     });
 }
@@ -50,10 +69,15 @@ setInterval(fetchGist, 60 * 1000);
 
 // ================= ROUTES =================
 app.get("/", (req, res) => {
+    if (!cachedHTML || cachedHTML.length < 10) {
+        return res.send("<h1>Server warming up...</h1>");
+    }
+
     res.set({
         "Content-Type": "text/html; charset=UTF-8",
         "Cache-Control": "no-store"
     });
+
     res.send(cachedHTML);
 });
 
