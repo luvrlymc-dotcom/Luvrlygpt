@@ -14,7 +14,7 @@ const HOST = "127.0.0.1";
 
 // 🔗 Gist RAW
 const GIST_RAW_URL =
-  "https://gist.githubusercontent.com/luvrlymc-dotcom/6e1411dd6056806ae7611319eee94de7/raw/c16ff5624c9eb95c66bab29641528d6183c97baa/gistfile1.txt";
+  "https://gist.githubusercontent.com/luvrlymc-dotcom/6e1411dd6056806ae7611319eee94de7/raw/a9ab52af76b3eb288c86d632ca70267740a42320/gistfile1.txt";
 
 // ================= CACHE =================
 let cachedHTML = "<h1>Loading...</h1>";
