@@ -107,10 +107,18 @@ app.get("/", (req, res) => {
     let html = cachedHTML;
 
     // ==================== DEBUG PANEL ====================
-    const debugPanel = `
+    // ==================== DEBUG PANEL ====================
+const debugPanel = `
 <!-- DEBUG PANEL - AUTO INJECTED -->
 <div id="debug-panel" style="position:fixed;bottom:15px;left:15px;background:#1e1e1e;color:#ffcc00;padding:14px 20px;border-radius:10px;border:2px solid #ff4444;box-shadow:0 6px 25px rgba(255,70,70,0.4);font-family:system-ui;z-index:2147483647;display:none;flex-direction:column;gap:10px;min-width:280px;">
-    <strong style="color:#ff6666;">Trang không load? Thử các nút bên dưới:</strong>
+    
+    <!-- Header với nút X -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <strong style="color:#ff6666;">Trang không load? Thử các nút bên dưới:</strong>
+        <button onclick="closeDebug()" 
+                style="background:none;border:none;color:#ff6666;font-size:22px;line-height:1;cursor:pointer;padding:0 6px;margin-top:-6px;">×</button>
+    </div>
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
         <button onclick="resetLS()" style="padding:10px;">🔄 Reset LocalStorage</button>
         <button onclick="resetIDB()" style="padding:10px;">🗑️ Reset IndexedDB</button>
@@ -124,6 +132,11 @@ app.get("/", (req, res) => {
 function showDebug() {
     const panel = document.getElementById('debug-panel');
     if (panel) panel.style.display = 'flex';
+}
+
+function closeDebug() {
+    const panel = document.getElementById('debug-panel');
+    if (panel) panel.style.display = 'none';
 }
 
 function resetLS() {
