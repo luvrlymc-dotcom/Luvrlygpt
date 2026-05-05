@@ -1,11 +1,17 @@
 {
   "name": "render-autoping-html",
   "type": "module",
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "description": "Serve large HTML from Gist with auto-update and debug panel",
   "scripts": {
-    "start": "node app.js"
+    "start": "node app.js",
+    "dev": "node app.js"
   },
   "dependencies": {
+    "compression": "^1.7.4",
     "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
