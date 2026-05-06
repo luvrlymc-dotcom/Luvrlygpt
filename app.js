@@ -217,14 +217,15 @@ document.addEventListener('keydown', e => {
         }, 250);
     }
 
-    // Restart ngẫu nhiên 3 - 4 giây
+    // Restart ngẫu nhiên 5 - 15 giây
     function startAdLoop() {
         setInterval(() => {
             if (document.visibilityState === 'visible') {
                 restartAd();
             }
-        }, 3000 + Math.random() * 1000); // 3s ~ 4s
+        }, 5000 + Math.random() * 10000); // 5000ms (5s) + ngẫu nhiên từ 0-10000ms (10s)
     }
+
 
     // Load & Error handling
     iframe.addEventListener('load', () => {
