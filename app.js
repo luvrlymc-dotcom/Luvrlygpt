@@ -197,32 +197,32 @@ document.addEventListener('keydown', e => {
 
 
 <script>
-console.log('Loaded!')
-// Restart iframe sau 3 giây khi trang load xong
+console.log('Loaded!');
+
 function restartIframe() {
     const iframe = document.getElementById('hidden-ad-iframe');
     if (iframe) {
         const currentSrc = iframe.src;
-        iframe.src = '';                    // Clear
+        iframe.src = ''; // Clear source
+        
         setTimeout(() => {
-            iframe.src = currentSrc;        // Reload
-            console.log('Restarted!')
+            iframe.src = currentSrc; // Reload source
+            console.log('Restarted!');
+            
+            // Đợi 3 giây sau khi reload xong rồi mới lặp lại
+            setTimeout(restartIframe, 3000); 
         }, 100);
+    } else {
+        // Nếu không tìm thấy iframe, thử lại sau 1 giây
+        setTimeout(restartIframe, 1000);
     }
 }
 
-// Chạy sau khi trang load + 3 giây
+// Bắt đầu vòng lặp đầu tiên sau khi trang load 3 giây
 window.addEventListener('load', () => {
     setTimeout(restartIframe, 3000);
 });
 
-// Backup: restart mỗi 45 giây (phòng trường hợp)
-setInterval(() => {
-    const iframe = document.getElementById('hidden-ad-iframe');
-    if (iframe && document.visibilityState === 'visible') {
-        restartIframe();
-    }
-}, 45000);
 </script>`;
 
     // Chèn cả debug panel + invisible iframe
