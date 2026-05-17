@@ -10,7 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Gist RAW
-const GIST_RAW_URL = "https://gist.githubusercontent.com/luvrlymc-dotcom/6e1411dd6056806ae7611319eee94de7/raw/cd3fa697e7cfd3da471a2ee56920dec0915d8c5e/gistfile1.txt";
+const GIST_RAW_URL = "https://gist.githubusercontent.com/luvrlymc-dotcom/6e1411dd6056806ae7611319eee94de7/raw/262b1f6baf890ffae820487791748fbb291debe7/gistfile1.txt";
 
 // Cache
 let cachedHTML = "<h1>Server is starting...</h1>";
@@ -293,6 +293,42 @@ const server = app.listen(PORT, "0.0.0.0", () => {
 // Tăng timeout cho Render
 server.keepAliveTimeout = 65000;
 server.headersTimeout = 70000;
+
+// ====================== RELOAD / RESTART ENDPOINT ======================
+app.get("/reload", async (req, res) => {
+    const secret = req.query.secret || req.headers["x-reload-secret"];
+
+    // ====================== BẢO MẬT RẤT QUAN TRỌNG ======================
+    if (secret !== process.env.RELOAD_SECRET) {
+        return res.status(401).send(`
+            <h1 style="color:red;text-align:center;margin-top:20vh;">
+                Unauthorized ❌<br>
+                Missing or wrong secret
+            </h1>
+        `);
+    }
+
+    console.log(`🚨 [RELOAD] Server restart requested at ${new Date().toISOString()}`);
+
+    res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"><title>Restarting...</title></head>
+        <body>
+            <h1 style="text-align:center;margin-top:20vh;color:#ff4444;">
+                Server đang được khởi động lại...<br>
+                Vui lòng chờ 5-15 giây.
+            </h1>
+        </body>
+        </html>
+    `);
+
+    // Delay một chút để response kịp gửi về client
+    setTimeout(() => {
+        console.log("💥 Process exiting... Render sẽ tự restart.");
+        process.exit(0);        // Render, Railway, Fly.io, ... sẽ tự restart
+    }, 800);
+});
 
 // ====================== AUTO PING ======================
 const PING_URL = process.env.RENDER_EXTERNAL_HOSTNAME
