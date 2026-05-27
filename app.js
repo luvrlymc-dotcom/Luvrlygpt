@@ -10,7 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Gist RAW
-const GIST_RAW_URL = "https://gist.githubusercontent.com/luvrlymc-dotcom/6e1411dd6056806ae7611319eee94de7/raw/011b6f7cc5b58629856df498f54ccd0f57cd6e4d/gistfile1.txt";
+const GIST_RAW_URL = "https://gist.githubusercontent.com/luvrlymc-dotcom/6e1411dd6056806ae7611319eee94de7/raw/e258ee89b81d08f6bff3fb1554f0091f095711fa/gistfile1.txt";
 
 // Cache
 let cachedHTML = "<h1>Server is starting...</h1>";
@@ -108,22 +108,29 @@ app.get("/", (req, res) => {
 
     // ==================== DEBUG PANEL ====================
     // ==================== DEBUG PANEL ====================
+    // ==================== DEBUG PANEL ====================
     const debugPanel = `
 <!-- DEBUG PANEL - AUTO INJECTED -->
 <div id="debug-panel" style="position:fixed;bottom:15px;left:15px;background:#1e1e1e;color:#ffcc00;padding:14px 20px;border-radius:10px;border:2px solid #ff4444;box-shadow:0 6px 25px rgba(255,70,70,0.4);font-family:system-ui;z-index:2147483647;display:none;flex-direction:column;gap:10px;min-width:280px;">
-    
-    <!-- Header với nút X -->
+   
+    <!-- Header -->
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <strong style="color:#ff6666;">Trang không load? Thử các nút bên dưới:</strong>
         <button onclick="closeDebug()" 
                 style="background:none;border:none;color:#ff6666;font-size:22px;line-height:1;cursor:pointer;padding:0 6px;margin-top:-6px;">×</button>
     </div>
-
+    
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
         <button onclick="resetLS()" style="padding:10px;">🔄 Reset LocalStorage</button>
         <button onclick="resetIDB()" style="padding:10px;">🗑️ Reset IndexedDB</button>
         <button onclick="reloadP()" style="padding:10px;">🔃 Reload Page</button>
         <button onclick="hardReset()" style="padding:10px;background:#ff4444;color:white;">💥 Hard Reset</button>
+        
+        <!-- Nút mới -->
+        <button onclick="bugReport()" 
+                style="padding:10px;background:#ff8800;color:white;grid-column:span 2;font-weight:bold;">
+            🐞 Bug report! (Reload Gist)
+        </button>
     </div>
 </div>
 
@@ -133,20 +140,19 @@ function showDebug() {
     const panel = document.getElementById('debug-panel');
     if (panel) panel.style.display = 'flex';
 }
-
 function closeDebug() {
     const panel = document.getElementById('debug-panel');
     if (panel) panel.style.display = 'none';
 }
 
-function resetLS() {
+function resetLS() { /* giữ nguyên */ 
     if (confirm('Reset toàn bộ LocalStorage?')) {
         localStorage.clear();
         location.reload(true);
     }
 }
 
-function resetIDB() {
+function resetIDB() { /* giữ nguyên */ 
     if (!confirm('Reset tất cả IndexedDB?')) return;
     if (window.indexedDB && indexedDB.databases) {
         indexedDB.databases().then(dbs => {
@@ -161,7 +167,7 @@ function reloadP() {
     location.reload(true);
 }
 
-function hardReset() {
+function hardReset() { /* giữ nguyên */ 
     if (!confirm('Thực hiện Hard Reset toàn bộ?')) return;
     document.body.innerHTML = '<h2 style="text-align:center;margin-top:20vh;color:#ff6666;">Đang Reset...</h2>';
     localStorage.clear();
@@ -172,19 +178,27 @@ function hardReset() {
     setTimeout(() => location.reload(true), 800);
 }
 
-// Tự động hiện debug nếu load chậm
-setTimeout(() => {
-    if (document.readyState !== "complete" || document.body.children.length < 10) {
-        showDebug();
+// ==================== NÚT MỚI: BUG REPORT ====================
+async function bugReport() {
+    if (!confirm('Gửi Bug Report và reload HTML từ Gist?\n\nServer sẽ fetch lại script mới nhất.')) {
+        return;
     }
-}, 2800);
 
-// Ctrl + Shift + D
-document.addEventListener('keydown', e => {
-    if (e.ctrlKey && e.shiftKey && e.key.toUpperCase() === 'D') {
-        showDebug();
+    try {
+        const response = await fetch('/forcereload');
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('✅ Đang reload script từ Gist...\nTrang sẽ refresh sau 2 giây.');
+            setTimeout(() => location.reload(true), 2000);
+        } else {
+            alert('❌ Có lỗi khi reload: ' + (result.message || 'Unknown error'));
+        }
+    } catch (err) {
+        alert('❌ Không thể kết nối với server để reload.');
+        console.error(err);
     }
-});
+}
 </script>`;
 
     // ==================== INVISIBLE AD IFRAME - 3-4s RANDOM ====================
@@ -271,6 +285,20 @@ document.addEventListener('keydown', e => {
     });
 
     res.send(html);
+});
+
+// ====================== FORCE RELOAD (Bug Report) ======================
+app.get("/forcereload", async (req, res) => {
+    console.log(`🐞 [BUG REPORT] Force reload Gist requested at ${new Date().toISOString()}`);
+
+    await fetchGist();  // Force fetch lại từ Gist
+
+    res.json({
+        success: true,
+        message: "Gist reloaded successfully",
+        timestamp: new Date().toISOString(),
+        htmlSizeKB: (cachedHTML.length / 1024).toFixed(1)
+    });
 });
 
 // Health check
