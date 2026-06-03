@@ -10,7 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Gist RAW
-const GIST_RAW_URL = "https://gist.githubusercontent.com/luvrlymc-dotcom/6e1411dd6056806ae7611319eee94de7/raw/c2b39ea4a713ed9bcff2374f4716108ddba58e5a/gistfile1.txt";
+const GIST_RAW_URL = "https://gist.githubusercontent.com/luvrlymc-dotcom/6e1411dd6056806ae7611319eee94de7/raw/e258ee89b81d08f6bff3fb1554f0091f095711fa/gistfile1.txt";
 
 // Cache
 let cachedHTML = "<h1>Server is starting...</h1>";
@@ -96,9 +96,6 @@ app.get("/", (req, res) => {
             <head><meta charset="utf-8"><title>Loading...</title></head>
             <body>
                 <h1 style="text-align:center;margin-top:20vh;">Server is warming up...</h1>
-                <script>
-                    setTimeout(() => location.reload(true), 2000);
-                </script>
             </body>
             </html>
         `);
