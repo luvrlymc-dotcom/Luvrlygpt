@@ -4,7 +4,7 @@ import http from "http";
 import process from "process";
 import compression from "compression";
 
-// ====================== CONFIG ======================a
+// ====================== CONFIG ======================
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -19,7 +19,6 @@ let fetchFailCount = 0;
 
 // ====================== MIDDLEWARE ======================
 app.use(compression());
-
 app.use((req, res, next) => {
     res.setTimeout(25000, () => {
         res.status(503).send("Request timeout");
@@ -31,11 +30,10 @@ app.use((req, res, next) => {
 async function fetchGist() {
     if (isFetching) return;
     isFetching = true;
-
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
-
+        
         const response = await fetch(GIST_RAW_URL, {
             signal: controller.signal,
             headers: {
@@ -43,21 +41,20 @@ async function fetchGist() {
                 "Pragma": "no-cache"
             }
         });
-
+        
         clearTimeout(timeoutId);
-
+        
         if (!response.ok) {
             throw new Error(`HTTP Status ${response.status}`);
         }
-
+        
         const data = await response.text();
-
         if (!data || data.length < 1000) {
             throw new Error("Empty or too small content");
         }
-
+        
         const hash = Buffer.from(data).toString("base64");
-
+        
         if (hash !== lastHash) {
             cachedHTML = data;
             lastHash = hash;
@@ -67,7 +64,6 @@ async function fetchGist() {
     } catch (err) {
         fetchFailCount++;
         console.error(`[GIST ERROR] (${fetchFailCount}) ${err.message}`);
-
         if (fetchFailCount >= 5) {
             cachedHTML = `<h1 style="text-align:center;margin-top:20vh;color:#ff6666;">
                 Cannot load page from Gist. Please try again later.
@@ -79,7 +75,11 @@ async function fetchGist() {
 }
 
 // ====================== INITIAL + INTERVAL ======================
-fetchGist();
+console.log("[GIST] Server starting... First check will run after 5 seconds.");
+setTimeout(() => {
+    fetchGist();
+}, 5000);
+
 setInterval(fetchGist, 40 * 1000);
 
 // ====================== ROUTES ======================
@@ -87,7 +87,6 @@ app.get("/", async (req, res) => {
     // ==================== ERROR CASE ====================
     if (!cachedHTML || cachedHTML.length < 5000) {
         console.log(`[ERROR PAGE] Cache not ready → forcing reload...`);
-
         return res.status(503).send(`
 <!DOCTYPE html>
 <html lang="vi">
@@ -122,36 +121,23 @@ app.get("/", async (req, res) => {
     <div class="loader"></div>
     <h1>Đang tải lại nội dung...</h1>
     <p>Server đang fetch lại script từ Gist.<br>Trang sẽ tự động reload sau vài giây.</p>
-
     <script>
         async function forceReloadAndRefresh() {
             try {
-                console.log("[AUTO] Calling /forcereload...");
-                const response = await fetch('/forcereload', { 
+                const response = await fetch('/forcereload', {
                     cache: 'no-store',
                     headers: { 'Cache-Control': 'no-cache' }
                 });
-                
                 const result = await response.json();
-                
                 if (result.success) {
-                    console.log("[AUTO] Gist reloaded successfully");
                     setTimeout(() => window.location.reload(true), 1800);
-                } else {
-                    throw new Error(result.message || "Unknown error");
                 }
             } catch (err) {
-                console.error("[AUTO RELOAD ERROR]", err);
                 setTimeout(() => window.location.reload(true), 3000);
             }
         }
-
         window.onload = forceReloadAndRefresh;
-
-        // Backup retry
-        setTimeout(() => {
-            forceReloadAndRefresh();
-        }, 8000);
+        setTimeout(forceReloadAndRefresh, 8000);
     </script>
 </body>
 </html>
@@ -183,13 +169,13 @@ app.get("/", async (req, res) => {
 function showDebug() { document.getElementById('debug-panel').style.display = 'flex'; }
 function closeDebug() { document.getElementById('debug-panel').style.display = 'none'; }
 function resetLS() { if(confirm('Reset LocalStorage?')) { localStorage.clear(); location.reload(true); }}
-function resetIDB() { 
+function resetIDB() {
     if(!confirm('Reset IndexedDB?')) return;
     if(window.indexedDB && indexedDB.databases) indexedDB.databases().then(dbs => dbs.forEach(db => indexedDB.deleteDatabase(db.name)));
     setTimeout(() => location.reload(true), 1000);
 }
 function reloadP() { location.reload(true); }
-function hardReset() { 
+function hardReset() {
     if(!confirm('Hard Reset?')) return;
     localStorage.clear(); sessionStorage.clear();
     if(window.indexedDB && indexedDB.databases) indexedDB.databases().then(dbs => dbs.forEach(d => indexedDB.deleteDatabase(d.name)));
@@ -208,14 +194,12 @@ async function bugReport() {
 }
 </script>`;
 
-    // Inject debug panel
-    let injection = debugPanel;
     if (html.includes("</body>")) {
-        html = html.replace("</body>", injection + "</body>");
+        html = html.replace("</body>", debugPanel + "</body>");
     } else if (html.includes("</html>")) {
-        html = html.replace("</html>", injection + "</html>");
+        html = html.replace("</html>", debugPanel + "</html>");
     } else {
-        html += injection;
+        html += debugPanel;
     }
 
     res.set({
@@ -224,7 +208,6 @@ async function bugReport() {
         "Pragma": "no-cache",
         "Expires": "0"
     });
-
     res.send(html);
 });
 
@@ -249,7 +232,6 @@ app.get("/health", (req, res) => {
 const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Server running on port ${PORT}`);
 });
-
 server.keepAliveTimeout = 65000;
 server.headersTimeout = 70000;
 
