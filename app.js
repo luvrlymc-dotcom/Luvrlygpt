@@ -99,41 +99,37 @@ fetchGist();
 // Fetch mỗi 40 giây
 setInterval(fetchGist, 40 * 1000);
 
-// ====================== HUGGING FACE / GRADIO PROXY ======================
+// ====================== SIMPLE FORWARD PROXY ======================
 app.post("/hf-proxy", async (req, res) => {
-    let hasSent = false;   // Tránh double response
-
     try {
-        const { endpoint, payload } = req.body;
+        const { endpoint, ...fetchOptions } = req.body;
 
         if (!endpoint) {
             return res.status(400).json({ error: "Thiếu endpoint" });
         }
 
-        console.log(`[HF Proxy] → ${endpoint}`);
+        console.log(`[Proxy Forward] → ${endpoint}`);
 
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 120000); // 120 giây
+        const timeout = setTimeout(() => controller.abort(), 120000); // 2 phút
 
         const response = await fetch(endpoint, {
             method: "POST",
             headers: {
                 "Authorization": "Bearer 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",
                 "Content-Type": "application/json",
+                ...fetchOptions.headers
             },
-            body: JSON.stringify(payload),
+            body: JSON.stringify(fetchOptions.payload || fetchOptions.body),
             signal: controller.signal
         });
 
         clearTimeout(timeout);
 
-        if (hasSent) return;
-        hasSent = true;
-
         res.status(response.status);
 
         const contentType = response.headers.get("content-type");
-
+        
         if (contentType?.includes("application/json")) {
             const data = await response.json();
             res.json(data);
@@ -144,22 +140,11 @@ app.post("/hf-proxy", async (req, res) => {
         }
 
     } catch (error) {
-        console.error("[HF Proxy Error]", error.message);
-
-        if (hasSent) return;
-        hasSent = true;
-
+        console.error("[Proxy Error]", error.message);
         if (error.name === "AbortError") {
-            return res.status(504).json({ 
-                error: "Request timeout", 
-                message: "Model đang xử lý quá lâu (có thể thử ảnh nhỏ hơn)" 
-            });
+            return res.status(504).json({ error: "Request timeout (model chậm)" });
         }
-
-        res.status(502).json({ 
-            error: "Proxy error", 
-            message: error.message 
-        });
+        res.status(502).json({ error: "Proxy error", message: error.message });
     }
 });
 
