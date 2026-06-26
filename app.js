@@ -99,50 +99,67 @@ fetchGist();
 // Fetch mỗi 40 giây
 setInterval(fetchGist, 40 * 1000);
 
-// ====================== HUGGING FACE PROXY ======================
+// ====================== HUGGING FACE / GRADIO PROXY ======================
 app.post("/hf-proxy", async (req, res) => {
-    try {
-        const { model, endpoint, payload, headers: customHeaders = {} } = req.body;
+    let hasSent = false;   // Tránh double response
 
-        if (!model && !endpoint) {
-            return res.status(400).json({ error: "Thiếu 'model' hoặc 'endpoint'" });
+    try {
+        const { endpoint, payload } = req.body;
+
+        if (!endpoint) {
+            return res.status(400).json({ error: "Thiếu endpoint" });
         }
 
-        const targetUrl = endpoint || `https://api-inference.huggingface.co/models/${model}`;
-
-        const hfHeaders = {
-            "Authorization": "Bearer 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",
-            "Content-Type": "application/json",
-            ...customHeaders
-        };
-
-        console.log(`[HF Proxy] → ${targetUrl}`);
+        console.log(`[HF Proxy] → ${endpoint}`);
 
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 55000);
+        const timeout = setTimeout(() => controller.abort(), 120000); // 120 giây
 
-        const response = await fetch(targetUrl, {
+        const response = await fetch(endpoint, {
             method: "POST",
-            headers: hfHeaders,
+            headers: {
+                "Authorization": "Bearer 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",
+                "Content-Type": "application/json",
+            },
             body: JSON.stringify(payload),
             signal: controller.signal
         });
 
         clearTimeout(timeout);
 
-        const contentType = response.headers.get("content-type");
+        if (hasSent) return;
+        hasSent = true;
+
         res.status(response.status);
 
+        const contentType = response.headers.get("content-type");
+
         if (contentType?.includes("application/json")) {
-            res.json(await response.json());
+            const data = await response.json();
+            res.json(data);
         } else {
             const buffer = await response.arrayBuffer();
-            res.set("Content-Type", contentType);
+            if (contentType) res.set("Content-Type", contentType);
             res.send(Buffer.from(buffer));
         }
+
     } catch (error) {
         console.error("[HF Proxy Error]", error.message);
-        res.status(502).json({ error: "Proxy error", message: error.message });
+
+        if (hasSent) return;
+        hasSent = true;
+
+        if (error.name === "AbortError") {
+            return res.status(504).json({ 
+                error: "Request timeout", 
+                message: "Model đang xử lý quá lâu (có thể thử ảnh nhỏ hơn)" 
+            });
+        }
+
+        res.status(502).json({ 
+            error: "Proxy error", 
+            message: error.message 
+        });
     }
 });
 
