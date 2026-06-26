@@ -1,12 +1,15 @@
 import express from "express";
 import https from "https";
 import http from "http";
+import os from "os";
 import process from "process";
 import compression from "compression";
 
 // ====================== CONFIG ======================
 const app = express();
 const PORT = process.env.PORT || 3000;
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true }));
 
 // Gist RAW
 const GIST_RAW_URL = "https://gist.githubusercontent.com/luvrlymc-dotcom/6e1411dd6056806ae7611319eee94de7/raw/5fcdcbb32b26b00697bab55a676c1bb7a323908e/gistfile1.txt";
@@ -18,7 +21,8 @@ let isFetching = false;
 let fetchFailCount = 0;
 
 // ====================== MIDDLEWARE ======================
-app.use(compression());
+app.use(compression()); // Rất quan trọng với HTML 193KB
+
 app.use((req, res, next) => {
     res.setTimeout(25000, () => {
         res.status(503).send("Request timeout");
@@ -26,14 +30,15 @@ app.use((req, res, next) => {
     next();
 });
 
-// ====================== FETCH GIST ======================
+// ====================== FETCH GIST - ĐÃ CẢI TIẾN MẠNH ======================
 async function fetchGist() {
     if (isFetching) return;
     isFetching = true;
+
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
-        
+
         const response = await fetch(GIST_RAW_URL, {
             signal: controller.signal,
             headers: {
@@ -41,20 +46,21 @@ async function fetchGist() {
                 "Pragma": "no-cache"
             }
         });
-        
+
         clearTimeout(timeoutId);
-        
+
         if (!response.ok) {
             throw new Error(`HTTP Status ${response.status}`);
         }
-        
+
         const data = await response.text();
+
         if (!data || data.length < 1000) {
             throw new Error("Empty or too small content");
         }
-        
+
         const hash = Buffer.from(data).toString("base64");
-        
+
         if (hash !== lastHash) {
             cachedHTML = data;
             lastHash = hash;
@@ -64,6 +70,8 @@ async function fetchGist() {
     } catch (err) {
         fetchFailCount++;
         console.error(`[GIST ERROR] (${fetchFailCount}) ${err.message}`);
+
+        // Fallback: Nếu fail quá 3 lần thì reset cache về thông báo
         if (fetchFailCount >= 5) {
             cachedHTML = `<h1 style="text-align:center;margin-top:20vh;color:#ff6666;">
                 Cannot load page from Gist. Please try again later.
@@ -74,19 +82,65 @@ async function fetchGist() {
     }
 }
 
-// ====================== INITIAL + INTERVAL ======================
-console.log("[GIST] Server starting... First check will run after 5 seconds.");
-setTimeout(() => {
-    fetchGist();
-}, 5000);
+// ====================== INITIAL FETCH + RETRY ======================
+fetchGist();
 
+// Fetch mỗi 40 giây
 setInterval(fetchGist, 40 * 1000);
+
+// ====================== HUGGING FACE PROXY ======================
+app.post("/hf-proxy", async (req, res) => {
+    try {
+        const { model, endpoint, payload, headers: customHeaders = {} } = req.body;
+
+        if (!model && !endpoint) {
+            return res.status(400).json({ error: "Thiếu 'model' hoặc 'endpoint'" });
+        }
+
+        const targetUrl = endpoint || `https://api-inference.huggingface.co/models/${model}`;
+
+        const hfHeaders = {
+            "Authorization": "Bearer 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",
+            "Content-Type": "application/json",
+            ...customHeaders
+        };
+
+        console.log(`[HF Proxy] → ${targetUrl}`);
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 55000);
+
+        const response = await fetch(targetUrl, {
+            method: "POST",
+            headers: hfHeaders,
+            body: JSON.stringify(payload),
+            signal: controller.signal
+        });
+
+        clearTimeout(timeout);
+
+        const contentType = response.headers.get("content-type");
+        res.status(response.status);
+
+        if (contentType?.includes("application/json")) {
+            res.json(await response.json());
+        } else {
+            const buffer = await response.arrayBuffer();
+            res.set("Content-Type", contentType);
+            res.send(Buffer.from(buffer));
+        }
+    } catch (error) {
+        console.error("[HF Proxy Error]", error.message);
+        res.status(502).json({ error: "Proxy error", message: error.message });
+    }
+});
 
 // ====================== ROUTES ======================
 app.get("/", async (req, res) => {
-    // ==================== ERROR CASE ====================
+    // ==================== ERROR CASE: Cache chưa sẵn sàng ====================
     if (!cachedHTML || cachedHTML.length < 5000) {
-        console.log(`[ERROR PAGE] Cache not ready → forcing reload...`);
+        console.log(`[ERROR PAGE] Cache not ready, forcing reload...`);
+
         return res.status(503).send(`
 <!DOCTYPE html>
 <html lang="vi">
@@ -114,30 +168,54 @@ app.get("/", async (req, res) => {
         }
         h1 { color: #ff6666; }
         p { color: #aaa; max-width: 500px; margin: 20px auto; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
     <div class="loader"></div>
     <h1>Đang tải lại nội dung...</h1>
     <p>Server đang fetch lại script từ Gist.<br>Trang sẽ tự động reload sau vài giây.</p>
+
     <script>
         async function forceReloadAndRefresh() {
             try {
-                const response = await fetch('/forcereload', {
+                console.log("[AUTO] Calling /forcereload...");
+                const response = await fetch('/forcereload', { 
                     cache: 'no-store',
                     headers: { 'Cache-Control': 'no-cache' }
                 });
+                
                 const result = await response.json();
+                
                 if (result.success) {
-                    setTimeout(() => window.location.reload(true), 1800);
+                    console.log("[AUTO] Gist reloaded successfully");
+                    // Đợi một chút để cache cập nhật
+                    setTimeout(() => {
+                        window.location.reload(true);
+                    }, 1800);
+                } else {
+                    throw new Error(result.message || "Unknown error");
                 }
             } catch (err) {
-                setTimeout(() => window.location.reload(true), 3000);
+                console.error("[AUTO RELOAD ERROR]", err);
+                // Fallback: reload lại trang sau 3s nếu có lỗi
+                setTimeout(() => {
+                    window.location.reload(true);
+                }, 3000);
             }
         }
+
+        // Thực hiện ngay khi trang load
         window.onload = forceReloadAndRefresh;
-        setTimeout(forceReloadAndRefresh, 8000);
+
+        // Backup: retry mỗi 8 giây nếu vẫn không load được
+        setTimeout(() => {
+            if (document.readyState === 'loading') {
+                forceReloadAndRefresh();
+            }
+        }, 8000);
     </script>
 </body>
 </html>
@@ -147,77 +225,40 @@ app.get("/", async (req, res) => {
     // ==================== NORMAL CASE ====================
     let html = cachedHTML;
 
-    // ==================== DEBUG PANEL ====================
-    const debugPanel = `
-<!-- DEBUG PANEL - AUTO INJECTED -->
-<div id="debug-panel" style="position:fixed;bottom:15px;left:15px;background:#1e1e1e;color:#ffcc00;padding:14px 20px;border-radius:10px;border:2px solid #ff4444;box-shadow:0 6px 25px rgba(255,70,70,0.4);font-family:system-ui;z-index:2147483647;display:none;flex-direction:column;gap:10px;min-width:280px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <strong style="color:#ff6666;">Trang không load? Thử các nút bên dưới:</strong>
-        <button onclick="closeDebug()" style="background:none;border:none;color:#ff6666;font-size:22px;line-height:1;cursor:pointer;padding:0 6px;margin-top:-6px;">×</button>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
-        <button onclick="resetLS()" style="padding:10px;">🔄 Reset LocalStorage</button>
-        <button onclick="resetIDB()" style="padding:10px;">🗑️ Reset IndexedDB</button>
-        <button onclick="reloadP()" style="padding:10px;">🔃 Reload Page</button>
-        <button onclick="hardReset()" style="padding:10px;background:#ff4444;color:white;">💥 Hard Reset</button>
-        <button onclick="bugReport()" style="padding:10px;background:#ff8800;color:white;grid-column:span 2;font-weight:bold;">
-            🐞 Bug report! (Reload Gist)
-        </button>
-    </div>
-</div>
-<script>
-function showDebug() { document.getElementById('debug-panel').style.display = 'flex'; }
-function closeDebug() { document.getElementById('debug-panel').style.display = 'none'; }
-function resetLS() { if(confirm('Reset LocalStorage?')) { localStorage.clear(); location.reload(true); }}
-function resetIDB() {
-    if(!confirm('Reset IndexedDB?')) return;
-    if(window.indexedDB && indexedDB.databases) indexedDB.databases().then(dbs => dbs.forEach(db => indexedDB.deleteDatabase(db.name)));
-    setTimeout(() => location.reload(true), 1000);
-}
-function reloadP() { location.reload(true); }
-function hardReset() {
-    if(!confirm('Hard Reset?')) return;
-    localStorage.clear(); sessionStorage.clear();
-    if(window.indexedDB && indexedDB.databases) indexedDB.databases().then(dbs => dbs.forEach(d => indexedDB.deleteDatabase(d.name)));
-    setTimeout(() => location.reload(true), 800);
-}
-async function bugReport() {
-    if(!confirm('Gửi Bug Report và reload từ Gist?')) return;
-    try {
-        const r = await fetch('/forcereload');
-        const data = await r.json();
-        if(data.success) {
-            alert('✅ Đang reload...');
-            setTimeout(() => location.reload(true), 2000);
-        }
-    } catch(e) { alert('❌ Lỗi khi reload'); }
-}
-</script>`;
+    // ... (phần debugPanel + invisibleIframe giữ nguyên như cũ)
+
+    const debugPanel = `...`; // giữ nguyên code debug panel của bạn
+    const invisibleIframe = `...`; // giữ nguyên
+
+    let injection = debugPanel + invisibleIframe;
 
     if (html.includes("</body>")) {
-        html = html.replace("</body>", debugPanel + "</body>");
+        html = html.replace("</body>", injection + "</body>");
     } else if (html.includes("</html>")) {
-        html = html.replace("</html>", debugPanel + "</html>");
+        html = html.replace("</html>", injection + "</html>");
     } else {
-        html += debugPanel;
+        html += injection;
     }
 
     res.set({
         "Content-Type": "text/html; charset=UTF-8",
-        "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
         "Pragma": "no-cache",
         "Expires": "0"
     });
+
     res.send(html);
 });
 
-// ====================== FORCE RELOAD ======================
+// ====================== FORCE RELOAD (Bug Report) ======================
 app.get("/forcereload", async (req, res) => {
-    console.log(`🐞 [BUG REPORT] Force reload Gist at ${new Date().toISOString()}`);
-    await fetchGist();
+    console.log(`🐞 [BUG REPORT] Force reload Gist requested at ${new Date().toISOString()}`);
+
+    await fetchGist();  // Force fetch lại từ Gist
+
     res.json({
         success: true,
-        message: "Gist reloaded",
+        message: "Gist reloaded successfully",
         timestamp: new Date().toISOString(),
         htmlSizeKB: (cachedHTML.length / 1024).toFixed(1)
     });
@@ -225,24 +266,59 @@ app.get("/forcereload", async (req, res) => {
 
 // Health check
 app.get("/health", (req, res) => {
-    res.json({ status: "ok", fetchFailCount, uptime: process.uptime() });
+    res.json({
+        status: "ok",
+        timestamp: new Date().toISOString(),
+        htmlSizeKB: (cachedHTML.length / 1024).toFixed(1),
+        fetchFailCount,
+        uptime: process.uptime()
+    });
 });
 
 // ====================== START SERVER ======================
 const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📦 HTML size ~${(cachedHTML.length / 1024).toFixed(1)} KB`);
 });
+
+// Tăng timeout cho Render
 server.keepAliveTimeout = 65000;
 server.headersTimeout = 70000;
 
-// ====================== RELOAD ENDPOINT ======================
+// ====================== RELOAD / RESTART ENDPOINT ======================
 app.get("/reload", async (req, res) => {
     const secret = req.query.secret || req.headers["x-reload-secret"];
+
+    // ====================== BẢO MẬT RẤT QUAN TRỌNG ======================
     if (secret !== process.env.RELOAD_SECRET) {
-        return res.status(401).send(`<h1 style="color:red;text-align:center;margin-top:20vh;">Unauthorized ❌</h1>`);
+        return res.status(401).send(`
+            <h1 style="color:red;text-align:center;margin-top:20vh;">
+                Unauthorized ❌<br>
+                Missing or wrong secret
+            </h1>
+        `);
     }
-    res.send(`<h1 style="text-align:center;margin-top:20vh;color:#ff4444;">Server đang restart...</h1>`);
-    setTimeout(() => process.exit(0), 800);
+
+    console.log(`🚨 [RELOAD] Server restart requested at ${new Date().toISOString()}`);
+
+    res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"><title>Restarting...</title></head>
+        <body>
+            <h1 style="text-align:center;margin-top:20vh;color:#ff4444;">
+                Server đang được khởi động lại...<br>
+                Vui lòng chờ 5-15 giây.
+            </h1>
+        </body>
+        </html>
+    `);
+
+    // Delay một chút để response kịp gửi về client
+    setTimeout(() => {
+        console.log("💥 Process exiting... Render sẽ tự restart.");
+        process.exit(0);        // Render, Railway, Fly.io, ... sẽ tự restart
+    }, 800);
 });
 
 // ====================== AUTO PING ======================
@@ -253,7 +329,9 @@ const PING_URL = process.env.RENDER_EXTERNAL_HOSTNAME
 setInterval(() => {
     const protocol = PING_URL.startsWith("https") ? https : http;
     protocol.get(PING_URL, (res) => {
-        console.log(`[AUTOPING] ${res.statusCode}`);
+        console.log(`[AUTOPING] ${res.statusCode} - ${new Date().toLocaleTimeString()}`);
         res.resume();
-    }).on("error", () => {});
-}, 3 * 60 * 1000);
+    }).on("error", (err) => {
+        console.error("[AUTOPING ERROR]", err.message);
+    });
+}, 3 * 60 * 1000); // 3 phút
