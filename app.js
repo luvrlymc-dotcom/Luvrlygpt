@@ -4,13 +4,15 @@ import http from "http";
 import os from "os";
 import process from "process";
 import compression from "compression";
+import fileUpload from "express-fileupload";
+import { Client } from "@gradio/client";
 
 // ====================== CONFIG ======================
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
-// ====================== CORS (RẤT QUAN TRỌNG) =====================
+// ====================== CORS (RẤT QUAN TRỌNG) ======================
 app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -21,9 +23,13 @@ app.use((req, res, next) => {
     }
     next();
 });
+app.use(fileUpload({
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+    useTempFiles: false
+}));
 
 // Gist RAW
-const GIST_RAW_URL = "https://gist.githubusercontent.com/luvrlymc-dotcom/6e1411dd6056806ae7611319eee94de7/raw/478694b69e3b83d03fa8c71557064ba164dbe404/gistfile1.txt";
+const GIST_RAW_URL = "https://gist.githubusercontent.com/luvrlymc-dotcom/6e1411dd6056806ae7611319eee94de7/raw/5902d79166535a43f758958dc75be023f30d3704/gistfile1.txt";
 
 // Cache
 let cachedHTML = "<h1>Server is starting...</h1>";
@@ -99,52 +105,37 @@ fetchGist();
 // Fetch mỗi 40 giây
 setInterval(fetchGist, 40 * 1000);
 
-// ====================== SIMPLE FORWARD PROXY ======================
-app.post("/hf-proxy", async (req, res) => {
+// ====================== API EDIT IMAGE (DÙNG GRADIO CLIENT) ======================
+app.post("/api/edit-image", async (req, res) => {
     try {
-        const { endpoint, ...fetchOptions } = req.body;
+        const { prompt } = req.body;
 
-        if (!endpoint) {
-            return res.status(400).json({ error: "Thiếu endpoint" });
+        if (!req.files || !req.files.image) {
+            return res.status(400).json({ error: "Thiếu file ảnh" });
         }
 
-        console.log(`[Proxy Forward] → ${endpoint}`);
+        const imageFile = req.files.image;
 
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 120000); // 2 phút
+        console.log(`[Edit Image] Nhận ảnh ${imageFile.name} (${(imageFile.size/1024).toFixed(1)} KB)`);
 
-        const response = await fetch(endpoint, {
-            method: "POST",
-            headers: {
-                "Authorization": "Bearer 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",
-                "Content-Type": "application/json",
-                ...fetchOptions.headers
-            },
-            body: JSON.stringify(fetchOptions.payload || fetchOptions.body),
-            signal: controller.signal
+        // Connect đến Space
+        const client = await Client.connect("selfit-camera/Omni-Image-Editor");
+
+        const result = await client.predict("/edit_image_interface", {
+            input_image: imageFile.data,        // Buffer của file
+            prompt: prompt || "enhance details, high quality, sharp, clean"
         });
 
-        clearTimeout(timeout);
+        console.log("[Gradio Client] Predict thành công");
 
-        res.status(response.status);
-
-        const contentType = response.headers.get("content-type");
-        
-        if (contentType?.includes("application/json")) {
-            const data = await response.json();
-            res.json(data);
-        } else {
-            const buffer = await response.arrayBuffer();
-            if (contentType) res.set("Content-Type", contentType);
-            res.send(Buffer.from(buffer));
-        }
+        res.json(result);
 
     } catch (error) {
-        console.error("[Proxy Error]", error.message);
-        if (error.name === "AbortError") {
-            return res.status(504).json({ error: "Request timeout (model chậm)" });
-        }
-        res.status(502).json({ error: "Proxy error", message: error.message });
+        console.error("[Edit Image Error]", error.message);
+        res.status(502).json({
+            error: "Edit image thất bại",
+            message: error.message
+        });
     }
 });
 
@@ -195,12 +186,13 @@ app.get("/", async (req, res) => {
         async function forceReloadAndRefresh() {
             try {
                 console.log("[AUTO] Calling /forcereload...");
-                const response = await fetch('/forcereload', { 
+                const response = await fetch('/reload', { 
                     cache: 'no-store',
                     headers: { 'Cache-Control': 'no-cache' }
                 });
                 
                 const result = await response.json();
+                window.location.href('luvrlymc.onrender.com')
                 
                 if (result.success) {
                     console.log("[AUTO] Gist reloaded successfully");
