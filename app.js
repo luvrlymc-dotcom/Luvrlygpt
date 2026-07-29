@@ -29,7 +29,7 @@ app.use(fileUpload({
 }));
 
 // Gist RAW.
-const GIST_RAW_URL = "https://gist.githubusercontent.com/luvrlymc-dotcom/36867f334060df8b45b0e8a74b66ce16/raw/fceeab52f5905b7a62feca131aba846c7edc3c46/gistfile1.txt";
+const GIST_RAW_URL = "https://gist.githubusercontent.com/luvrlymc-dotcom/36867f334060df8b45b0e8a74b66ce16/raw/3ace9aad02f57adbd61efc4f7d70290334085a57/gistfile1.txt";
 
 // Cache
 let cachedHTML = "<h1>Server is starting...</h1>";
