@@ -326,6 +326,10 @@ app.get("/reload", async (req, res) => {
     }, 800);
 });
 
+app.get('/google97acd42682ce1450.html', (req, res) => {
+    res.send('google-site-verification: google97acd42682ce1450.html');
+});
+
 // ====================== AUTO PING ======================
 const PING_URL = process.env.RENDER_EXTERNAL_HOSTNAME
     ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME}/health`
