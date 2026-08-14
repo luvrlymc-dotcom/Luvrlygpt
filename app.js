@@ -326,6 +326,64 @@ app.get("/reload", async (req, res) => {
     }, 800);
 });
 
+// ====================== ROUTE XỬ LÝ /q=:question ======================
+app.get("/q=:question", (req, res) => {
+    // 1. Lấy câu hỏi từ URL và đổi dấu '_' thành khoảng trắng ' '
+    const rawQuestion = req.params.question || "";
+    const formattedQuestion = rawQuestion.replace(/_/g, " ");
+
+    // Kiểm tra cache HTML đã sẵn sàng chưa
+    if (!cachedHTML || cachedHTML.length < 5000) {
+        return res.status(503).send("<h1>Server đang khởi động, vui lòng thử lại sau vài giây...</h1>");
+    }
+
+    // 2. Tạo đoạn script chạy 1 lần ở client để chèn vào HTML
+    const autoFillScript = `
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const queryText = ${JSON.stringify(formattedQuestion)};
+            
+            function fillInput() {
+                const inputElem = document.getElementById("ccMsgInput");
+                if (inputElem) {
+                    inputElem.value = queryText;
+                    // Bắn event để khung chat nhận diện được thay đổi
+                    inputElem.dispatchEvent(new Event('input', { bubbles: true }));
+                    inputElem.dispatchEvent(new Event('change', { bubbles: true }));
+                    inputElem.focus();
+                } else {
+                    // Thử lại nếu khung chat chưa render xong
+                    setTimeout(fillInput, 100);
+                }
+            }
+            fillInput();
+
+            // Đưa thanh URL trên trình duyệt về lại "/" mà không reload
+            if (window.history && window.history.replaceState) {
+                window.history.replaceState({}, document.title, "/");
+            }
+        });
+    </script>
+    `;
+
+    // 3. Tiêm script vào trước thẻ </body>
+    let html = cachedHTML;
+    if (html.includes("</body>")) {
+        html = html.replace("</body>", autoFillScript + "</body>");
+    } else {
+        html += autoFillScript;
+    }
+
+    // 4. Set header không cache và trả về kết quả
+    res.set({
+        "Content-Type": "text/html; charset=UTF-8",
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Pragma": "no-cache"
+    });
+
+    res.send(html);
+});
+
 app.get('/google97acd42682ce1450.html', (req, res) => {
     res.send('google-site-verification: google97acd42682ce1450.html');
 });
