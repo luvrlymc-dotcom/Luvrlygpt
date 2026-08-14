@@ -344,7 +344,7 @@ app.get("/q=:question", (req, res) => {
             const queryText = ${JSON.stringify(formattedQuestion)};
             
             function fillInput() {
-                const inputElem = document.getElementById("ccMsgInput");
+                const inputElem = document.getElementById("messageInput");
                 if (inputElem) {
                     inputElem.value = queryText;
                     // Bắn event để khung chat nhận diện được thay đổi
