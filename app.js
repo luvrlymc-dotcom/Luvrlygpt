@@ -476,6 +476,278 @@ app.get("/q=:question", (req, res) => {
     res.send(html);
 });
 
+const monitorhtml = `
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<title>Multi-Server Health Monitor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<script disable-devtool-auto src='[https://cdn.jsdelivr.net/npm/disable-devtool@latest](https://cdn.jsdelivr.net/npm/disable-devtool@latest)'></script>
+<style>
+    :root {
+        --bg: #0b0f1a;
+        --card: #111827;
+        --border: #1f2937;
+        --text: #e5e7eb;
+        --muted: #9ca3af;
+        --accent: #38bdf8;
+        --good: #22c55e;
+        --bad: #ef4444;
+        --warning: #f59e0b;
+    }
+
+    * {
+        box-sizing: border-box;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        padding: 20px;
+    }
+
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 10px;
+    }
+
+    h1 {
+        margin: 0;
+        font-size: 22px;
+        color: var(--accent);
+    }
+
+    .muted {
+        color: var(--muted);
+        font-size: 13px;
+    }
+
+    /* Layout 2 cột cho 2 Server */
+    .servers-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+        gap: 20px;
+    }
+
+    .server-column {
+        background: rgba(17, 24, 39, 0.6);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+    }
+
+    .server-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 18px;
+        margin-bottom: 12px;
+        color: var(--accent);
+        font-weight: bold;
+    }
+
+    .status-badge {
+        font-size: 12px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-weight: bold;
+    }
+    .status-online { background: rgba(34, 197, 94, 0.2); color: var(--good); border: 1px solid var(--good); }
+    .status-offline { background: rgba(239, 68, 68, 0.2); color: var(--bad); border: 1px solid var(--bad); }
+
+    .grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+    }
+
+    .card h2 {
+        margin: 0 0 8px;
+        font-size: 14px;
+        color: var(--accent);
+        border-bottom: 1px dashed var(--border);
+        padding-bottom: 4px;
+    }
+
+    .row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 13px;
+        padding: 3px 0;
+    }
+
+    .value {
+        color: var(--good);
+        font-weight: 500;
+    }
+
+    .footer {
+        margin-top: 20px;
+        text-align: center;
+        font-size: 12px;
+        color: var(--muted);
+    }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🩺 LuvrlyGPT server monitor</h1>
+    <div class="muted" id="lastUpdate">Checking servers...</div>
+</div>
+
+<div class="servers-container">
+    <!-- SERVER 1: luvrlymc -->
+    <div class="server-column" id="srv1-container">
+        <div class="server-title">
+            <span>🚀 LLM-AI Server</span>
+            <span class="status-badge status-offline" id="srv1-badge">CHECKING</span>
+        </div>
+        <div class="grid">
+            <div class="card" id="srv1-system"></div>
+            <div class="card" id="srv1-memory"></div>
+            <div class="card" id="srv1-node"></div>
+            <div class="card" id="srv1-app"></div>
+        </div>
+    </div>
+
+    <!-- SERVER 2: luvrlygpt2 -->
+    <div class="server-column" id="srv2-container">
+        <div class="server-title">
+            <span>🤖 MLLM-AI Server</span>
+            <span class="status-badge status-offline" id="srv2-badge">CHECKING</span>
+        </div>
+        <div class="grid">
+            <div class="card" id="srv2-system"></div>
+            <div class="card" id="srv2-memory"></div>
+            <div class="card" id="srv2-node"></div>
+        </div>
+    </div>
+</div>
+
+<div class="footer">
+    Auto refresh every 5s • Sources: /information
+</div>
+
+<script>
+const SERVERS = [
+    {
+        id: "srv1",
+        url: "[https://luvrlymc.onrender.com/information](https://luvrlymc.onrender.com/information)",
+        type: "mc"
+    },
+    {
+        id: "srv2",
+        url: "[https://luvrlygpt2.onrender.com/information](https://luvrlygpt2.onrender.com/information)",
+        type: "gpt2"
+    }
+];
+
+function row(label, value) {
+    return \`<div class="row"><span>\${label}</span><span class="value">\${value ?? 'N/A'}</span></div>\`;
+}
+
+async function fetchServerHealth(server) {
+    const badgeElem = document.getElementById(\`\${server.id}-badge\`);
+    
+    try {
+        const res = await fetch(server.url, { cache: "no-store" });
+        if (!res.ok) throw new Error(\`HTTP \${res.status}\`);
+        
+        const data = await res.json();
+
+        // Update Status Badge
+        badgeElem.className = "status-badge status-online";
+        badgeElem.innerText = "ONLINE";
+
+        // 1. SYSTEM CARD
+        document.getElementById(\`\${server.id}-system\`).innerHTML = \`
+            <h2>🖥 System</h2>
+            \${row("OS Platform", data.system?.platform)}
+            \${row("Arch", data.system?.architecture)}
+            \${row("CPU Cores", data.system?.cpuCores ?? data.cpu?.cores)}
+            \${row("CPU Model", data.cpu?.model || data.system?.cpuModel)}
+            \${row("Load Avg", (data.system?.loadAverage || data.system?.loadAvg || []).join(", "))}
+            \${row("System Uptime", data.system?.systemUptime)}
+        \`;
+
+        // 2. MEMORY CARD
+        document.getElementById(\`\${server.id}-memory\`).innerHTML = \`
+            <h2>💾 Server RAM</h2>
+            \${row("Total RAM", data.ram?.total || data.memory?.total)}
+            \${row("Used RAM", data.ram?.used || data.memory?.used)}
+            \${row("Free RAM", data.ram?.free || data.memory?.free)}
+            \${row("Usage %", data.ram?.usagePercentage || data.memory?.usagePercent)}
+        \`;
+
+        // 3. NODE PROCESS CARD
+        document.getElementById(\`\${server.id}-node\`).innerHTML = \`
+            <h2>⚙️ Node.js Process</h2>
+            \${row("Version", data.nodeProcess?.version)}
+            \${row("PID", data.nodeProcess?.pid)}
+            \${row("Process Uptime", data.nodeProcess?.processUptime || data.nodeProcess?.uptime)}
+            \${row("CPU Usage", data.nodeProcess?.cpuUsage?.percent || "N/A")}
+            \${row("Heap Used", data.nodeProcess?.heapUsage?.heapUsed || data.nodeProcess?.memoryUsage?.heapUsed)}
+            \${row("RSS Memory", data.nodeProcess?.heapUsage?.rss || data.nodeProcess?.memoryUsage?.rss)}
+        \`;
+
+        // 4. APP STATE / SERVICES CARD
+        if (server.type === "mc" && data.appState) {
+            document.getElementById(\`\${server.id}-app\`).innerHTML = \`
+                <h2>📦 App State (Gist Server)</h2>
+                \${row("Cached HTML", data.appState.cachedHtmlSizeKB + " KB")}
+                \${row("Fetch Fail Count", data.appState.fetchFailCount)}
+                \${row("Is Fetching", data.appState.isFetchingGist ? "Yes" : "No")}
+                \${row("Gist Status", data.appState.lastGistHash)}
+            \`;
+        }
+
+    } catch (e) {
+        badgeElem.className = "status-badge status-offline";
+        badgeElem.innerText = "OFFLINE";
+
+        const errorHtml = \`<div style="color:var(--bad); font-size:12px; padding:10px 0;">❌ Unable to fetch data (\${e.message})</div>\`;
+        document.getElementById(\`\${server.id}-system\`).innerHTML = errorHtml;
+        document.getElementById(\`\${server.id}-memory\`).innerHTML = "";
+        document.getElementById(\`\${server.id}-node\`).innerHTML = "";
+        
+        const appElem = document.getElementById(\`\${server.id}-app\`);
+        if (appElem) appElem.innerHTML = "";
+    }
+}
+
+async function updateAll() {
+    document.getElementById("lastUpdate").innerText = "Last sync: " + new Date().toLocaleTimeString();
+    await Promise.all(SERVERS.map(srv => fetchServerHealth(srv)));
+}
+
+// Chạy lần đầu & lặp lại mỗi 5s
+updateAll();
+setInterval(updateAll, 5000);
+</script>
+
+</body>
+</html>
+`;
+
+app.get('/monitor', (req, res) => {
+    res.send(monitorhtml);
+});
+
 app.get('/google97acd42682ce1450.html', (req, res) => {
     res.send('google-site-verification: google97acd42682ce1450.html');
 });
