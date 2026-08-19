@@ -255,6 +255,98 @@ app.get("/", async (req, res) => {
     res.send(html);
 });
 
+// ====================== ROUTE /information ======================
+app.get("/information", (req, res) => {
+    // 1. Tính toán Bộ nhớ RAM
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMem = totalMem - freeMem;
+    const memUsagePercent = ((usedMem / totalMem) * 100).toFixed(2);
+
+    // 2. Tính toán Node.js Process Memory Usage
+    const memoryUsage = process.memoryUsage();
+
+    // Hàm format bytes -> MB/GB cho dễ đọc
+    const toMB = (bytes) => (bytes / (1024 * 1024)).toFixed(2) + " MB";
+    const toGB = (bytes) => (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+
+    // Hàm format thời gian Uptime
+    const formatUptime = (seconds) => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        return `${h}h ${m}m ${s}s`;
+    };
+
+    // 3. Tổng hợp thông tin hiện trạng máy chủ
+    const info = {
+        status: "online",
+        timestamp: new Date().toISOString(),
+        
+        // Môi trường Render (Render tự động inject các biến này)
+        renderEnvironment: {
+            isRender: !!process.env.RENDER,
+            serviceId: process.env.RENDER_SERVICE_ID || "N/A",
+            serviceName: process.env.RENDER_SERVICE_NAME || "N/A",
+            externalHostname: process.env.RENDER_EXTERNAL_HOSTNAME || "localhost",
+            instanceId: process.env.RENDER_INSTANCE_ID || "N/A",
+        },
+
+        // Hệ điều hành & Phần cứng máy chủ Render
+        system: {
+            hostname: os.hostname(),
+            platform: os.platform(),
+            architecture: os.arch(),
+            systemUptime: formatUptime(os.uptime()),
+            loadAverage: os.loadavg().map(load => load.toFixed(2)), // Tải hệ thống 1, 5, 15 phút
+        },
+
+        // Thông tin CPU
+        cpu: {
+            model: os.cpus()[0]?.model || "N/A",
+            cores: os.cpus().length,
+            speedMHz: os.cpus()[0]?.speed || 0,
+        },
+
+        // RAM tổng của Instance trên Render
+        ram: {
+            total: toGB(totalMem),
+            used: toGB(usedMem),
+            free: toGB(freeMem),
+            usagePercentage: `${memUsagePercent}%`,
+        },
+
+        // Trạng thái riêng của Process Node.js đang chạy
+        nodeProcess: {
+            version: process.version,
+            pid: process.pid,
+            processUptime: formatUptime(process.uptime()),
+            heapUsage: {
+                rss: toMB(memoryUsage.rss),            // RAM thực tế process chiếm
+                heapTotal: toMB(memoryUsage.heapTotal),// Heap cấp phát
+                heapUsed: toMB(memoryUsage.heapUsed),  // Heap thực sự dùng
+                external: toMB(memoryUsage.external)
+            }
+        },
+
+        // Trạng thái ứng dụng của bạn (App State)
+        appState: {
+            cachedHtmlSizeKB: (cachedHTML.length / 1024).toFixed(1),
+            fetchFailCount: fetchFailCount,
+            isFetchingGist: isFetching,
+            lastGistHash: lastHash ? "Loaded" : "Empty"
+        }
+    };
+
+    res.set({
+        "Content-Type": "application/json; charset=UTF-8",
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Pragma": "no-cache"
+    });
+
+    res.json(info);
+});
+
 // ====================== FORCE RELOAD (Bug Report) ======================
 app.get("/forcereload", async (req, res) => {
     console.log(`🐞 [BUG REPORT] Force reload Gist requested at ${new Date().toISOString()}`);
