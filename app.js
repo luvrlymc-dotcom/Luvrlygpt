@@ -477,7 +477,7 @@ app.get("/q=:question", (req, res) => {
 });
 
 app.get('/monitor', async (req, res) => {
-    const GIST_URL = "https://gist.githubusercontent.com/luvrlymc-dotcom/69b2310561cd0e5828c94ad17e0bffee/raw/17577fa6980649c6e11d86986a8d67b437d19498/monitor";
+    const GIST_URL = "https://gist.githubusercontent.com/luvrlymc-dotcom/69b2310561cd0e5828c94ad17e0bffee/raw/7dcf826351ca29d7d7bd087885ed12c66f36060e/monitor";
 
     try {
         const response = await fetch(GIST_URL, {
