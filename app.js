@@ -500,6 +500,35 @@ app.get('/monitor', async (req, res) => {
     }
 });
 
+let currentJobs = 0;
+// Lưu trữ các bộ đếm thời gian (timer) đang chạy cho từng job
+let activeTimers = [];
+
+// Đường dẫn /gpu: Tăng 1 job và lên lịch giảm về 0 sau 20-30s
+app.get('/gpu', (req, res) => {
+    currentJobs += 1;
+    
+    // Tạo thời gian ngẫu nhiên từ 20 đến 30 giây (20000 - 30000 ms)
+    const randomTime = Math.floor(Math.random() * (30000 - 20000 + 1)) + 20000;
+    
+    const timer = setTimeout(() => {
+        if (currentJobs > 0) {
+            currentJobs -= 1;
+        }
+        // Xóa timer khỏi danh sách sau khi chạy xong
+        activeTimers = activeTimers.filter(t => t !== timer);
+    }, randomTime);
+    
+    activeTimers.push(timer);
+    
+    res.send(`Da nhan 1 job. So job hien tai: ${currentJobs}. Se giam sau ${randomTime / 1000} giay.`);
+});
+
+// Đường dẫn /getgpu: Hiển thị số job hiện tại
+app.get('/getgpu', (req, res) => {
+    res.send(`So job hien tai la: ${currentJobs}`);
+});
+
 app.get('/google97acd42682ce1450.html', (req, res) => {
     res.send('google-site-verification: google97acd42682ce1450.html');
 });
