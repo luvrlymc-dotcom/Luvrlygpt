@@ -29,7 +29,7 @@ app.use(fileUpload({
 }));
 
 // Gist RAW.
-const GIST_RAW_URL = "https://gist.githubusercontent.com/luvrlymc-dotcom/bab564fc2d2ed43c873508a251bf027e/raw/b7b54f728c8dba73515736f8c33b887841805c27/gistfile1.txt";
+const GIST_RAW_URL = "https://gist.githubusercontent.com/luvrlymc-dotcom/bab564fc2d2ed43c873508a251bf027e/raw/17f9a55b4ff367ee96ef510d49527af39a508e17/gistfile1.txt";
 
 // Cache
 let cachedHTML = "<h1>Server is starting...</h1>";
@@ -477,7 +477,7 @@ app.get("/q=:question", (req, res) => {
 });
 
 app.get('/monitor', async (req, res) => {
-    const GIST_URL = "https://gist.githubusercontent.com/luvrlymc-dotcom/69b2310561cd0e5828c94ad17e0bffee/raw/7dcf826351ca29d7d7bd087885ed12c66f36060e/monitor";
+    const GIST_URL = "https://gist.githubusercontent.com/luvrlymc-dotcom/69b2310561cd0e5828c94ad17e0bffee/raw/7812ad08c3a1f05a6ede53b52d3df27789963233/monitor";
 
     try {
         const response = await fetch(GIST_URL, {
